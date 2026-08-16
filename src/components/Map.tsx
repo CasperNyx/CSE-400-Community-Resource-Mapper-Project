@@ -6,6 +6,7 @@ import "leaflet/dist/leaflet.css";
 import { db } from "@/firebase";
 import { collection, onSnapshot } from "firebase/firestore";
 import L from "leaflet";
+import Link from "next/link";
 
 // Dynamic icon generator based on triage intent
 const getMarkerIcon = (intent: string) => {
@@ -47,7 +48,6 @@ export default function Map() {
     return () => unsubscribe();
   }, []);
 
-  // Filter the reports before mapping over them
   const filteredReports = reports.filter((report) => 
     filter === "All" ? true : report.intent === filter
   );
@@ -55,8 +55,8 @@ export default function Map() {
   return (
     <div className="relative w-full h-full">
       {/* Floating Filter Controls */}
-      <div className="absolute top-4 left-0 right-0 z-[1000] flex justify-center drop-shadow-md">
-        <div className="bg-white p-1 rounded-full flex gap-1 border border-gray-200">
+      <div className="absolute top-4 left-0 right-0 z-[1000] flex justify-center drop-shadow-md pointer-events-none">
+        <div className="bg-white p-1 rounded-full flex gap-1 border border-gray-200 pointer-events-auto">
           <button 
             onClick={() => setFilter("All")}
             className={`px-4 py-2 rounded-full text-sm font-bold transition-all ${filter === "All" ? "bg-blue-600 text-white" : "bg-transparent text-gray-600 hover:bg-gray-100"}`}
@@ -76,6 +76,17 @@ export default function Map() {
             Offers
           </button>
         </div>
+      </div>
+
+      {/* Floating Admin Button */}
+      <div className="absolute top-4 right-4 z-[1000]">
+        <Link 
+          href="/admin" 
+          className="flex items-center gap-1.5 bg-gray-900/90 backdrop-blur text-white px-3.5 py-2 rounded-xl text-xs font-bold shadow-md hover:bg-black transition-all"
+        >
+          <span>🛡️</span>
+          <span>Admin</span>
+        </Link>
       </div>
 
       <MapContainer 
