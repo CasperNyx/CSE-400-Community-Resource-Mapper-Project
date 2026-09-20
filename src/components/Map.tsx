@@ -2,22 +2,33 @@
 
 import { useEffect, useState } from "react";
 import { MapContainer, TileLayer, Marker, Popup } from "react-leaflet";
+// @ts-ignore
+import MarkerClusterGroup from "react-leaflet-cluster";
 import "leaflet/dist/leaflet.css";
 import { db } from "@/firebase";
 import { collection, onSnapshot } from "firebase/firestore";
 import L from "leaflet";
 import Link from "next/link";
 
-// Dynamic icon generator based on triage intent
+// 1. The Bulletproof Individual Pin (Ensures single pins never disappear)
 const getMarkerIcon = (intent: string) => {
-  const color = intent === "Need" ? "red" : "green";
-  return L.icon({
-    iconUrl: `https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-2x-${color}.png`,
-    shadowUrl: "https://cdnjs.cloudflare.com/ajax/libs/leaflet/0.7.7/images/marker-shadow.png",
-    iconSize: [25, 41],
-    iconAnchor: [12, 41],
-    popupAnchor: [1, -34],
-    shadowSize: [41, 41]
+  const color = intent === "Need" ? "#dc2626" : "#16a34a"; 
+  return L.divIcon({
+    html: `<div style="background-color: ${color}; width: 24px; height: 24px; border-radius: 50%; border: 3px solid white; box-shadow: 0 2px 5px rgba(0,0,0,0.5);"></div>`,
+    className: "custom-individual-pin",
+    iconSize: L.point(24, 24),
+    iconAnchor: L.point(12, 12),
+  });
+};
+
+// 2. The Bulletproof Cluster Bubble (Bypasses Tailwind)
+const createCustomClusterIcon = (cluster: any) => {
+  return L.divIcon({
+    html: `<div style="background-color: #2563eb; color: white; font-weight: bold; border-radius: 50%; height: 40px; width: 40px; display: flex; align-items: center; justify-content: center; border: 3px solid white; box-shadow: 0 4px 6px rgba(0,0,0,0.3); font-size: 16px;">
+            ${cluster.getChildCount()}
+           </div>`,
+    className: "custom-cluster-icon",
+    iconSize: L.point(40, 40, true),
   });
 };
 
@@ -30,6 +41,7 @@ interface Report {
   rawText: string;
   lat: number;
   lng: number;
+  threatScore?: number;
 }
 
 export default function Map() {
@@ -99,28 +111,46 @@ export default function Map() {
           url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
         />
 
-        {filteredReports.map((report) => (
-          <Marker 
-            key={report.id} 
-            position={[report.lat, report.lng]} 
-            icon={getMarkerIcon(report.intent)}
-          >
-            <Popup>
-              <div className="p-1 max-w-xs">
-                <span className={`inline-block px-2 py-0.5 text-xs font-bold rounded mb-1 text-white ${
-                  report.intent === "Need" ? "bg-red-500" : "bg-green-500"
-                }`}>
-                  {report.intent}: {report.category}
-                </span>
-                <p className="text-sm font-semibold text-gray-900 mt-1">{report.locationText}</p>
-                <p className="text-xs text-gray-600 mt-1">{report.rawText}</p>
-                <div className="mt-2 text-[10px] text-gray-500 font-medium uppercase tracking-wider">
-                  Urgency: {report.urgency}
+        <MarkerClusterGroup 
+          chunkedLoading 
+          spiderfyOnMaxZoom={true} 
+          showCoverageOnHover={false}
+          maxClusterRadius={50}
+          iconCreateFunction={createCustomClusterIcon}
+        >
+          {filteredReports.map((report) => (
+            <Marker 
+              key={report.id} 
+              position={[report.lat, report.lng]} 
+              icon={getMarkerIcon(report.intent)}
+            >
+              <Popup>
+                <div className="p-1 max-w-xs">
+                  <span className={`inline-block px-2 py-0.5 text-xs font-bold rounded mb-1 text-white ${
+                    report.intent === "Need" ? "bg-red-500" : "bg-green-500"
+                  }`}>
+                    {report.intent}: {report.category}
+                  </span>
+                  
+                  <p className="text-sm font-semibold text-gray-900 mt-1">{report.locationText}</p>
+                  <p className="text-xs text-gray-600 mt-1">{report.rawText}</p>
+                  
+                  <div className="mt-2 text-[10px] text-gray-500 font-medium uppercase tracking-wider flex justify-between items-center border-t pt-2">
+                    <span>Urgency: {report.urgency}</span>
+                    <span className={`font-bold px-2 py-0.5 rounded ${
+                      report.threatScore === 0 ? "bg-gray-100 text-gray-600" :
+                      (report.threatScore || 1) >= 8 ? "bg-red-100 text-red-700" : 
+                      (report.threatScore || 1) >= 4 ? "bg-orange-100 text-orange-700" : 
+                      "bg-green-100 text-green-700"
+                    }`}>
+                      {report.threatScore === 0 ? "Threat: N/A" : `Threat: ${report.threatScore || 1}/10`}
+                    </span>
+                  </div>
                 </div>
-              </div>
-            </Popup>
-          </Marker>
-        ))}
+              </Popup>
+            </Marker>
+          ))}
+        </MarkerClusterGroup>
       </MapContainer>
     </div>
   );

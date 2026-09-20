@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { db, auth } from "@/firebase";
-import { collection, onSnapshot, doc, deleteDoc } from "firebase/firestore";
+import { collection, onSnapshot, doc, deleteDoc, addDoc, serverTimestamp } from "firebase/firestore";
 import { 
   createUserWithEmailAndPassword, 
   signInWithEmailAndPassword, 
@@ -19,27 +19,24 @@ interface Report {
   urgency: string;
   locationText: string;
   rawText: string;
+  threatScore?: number;
 }
-
+const delay = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
 export default function AdminDashboard() {
-  // --- AUTHENTICATION STATE ---
   const [user, setUser] = useState<User | null>(null);
   const [isCheckingAuth, setIsCheckingAuth] = useState(true);
-  
-  // UI Toggles
   const [isRegistering, setIsRegistering] = useState(false);
   const [isResettingPassword, setIsResettingPassword] = useState(false);
-  
-  // Form Inputs & Feedback
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [authError, setAuthError] = useState("");
   const [resetSent, setResetSent] = useState(false);
-
-  // --- DASHBOARD STATE ---
   const [reports, setReports] = useState<Report[]>([]);
+  
+  // States for Bulk Upload
+  const [isUploading, setIsUploading] = useState(false);
+  const [uploadProgress, setUploadProgress] = useState({ current: 0, total: 0 });
 
-  // Listen to Firebase Auth state
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, (currentUser) => {
       setUser(currentUser);
@@ -48,26 +45,24 @@ export default function AdminDashboard() {
     return () => unsubscribe();
   }, []);
 
-  // Fetch reports only if logged in
   useEffect(() => {
     if (!user) return;
-
     const unsubscribe = onSnapshot(collection(db, "reports"), (snapshot) => {
-      const reportsData: Report[] = snapshot.docs.map((doc) => ({
+      let reportsData: Report[] = snapshot.docs.map((doc) => ({
         id: doc.id,
         ...(doc.data() as Omit<Report, "id">),
       }));
+      
+      // Sort by threatScore descending (highest priority at the top)
+      reportsData.sort((a, b) => (b.threatScore || 0) - (a.threatScore || 0));
       setReports(reportsData);
     });
-
     return () => unsubscribe();
   }, [user]);
 
-  // Handle Login & Registration
   const handleAuth = async (e: React.FormEvent) => {
     e.preventDefault();
     setAuthError("");
-    
     try {
       if (isRegistering) {
         await createUserWithEmailAndPassword(auth, email, password);
@@ -81,17 +76,14 @@ export default function AdminDashboard() {
     }
   };
 
-  // Handle Password Reset
   const handlePasswordReset = async (e: React.FormEvent) => {
     e.preventDefault();
     setAuthError("");
     setResetSent(false);
-
     if (!email) {
       setAuthError("Please enter your email address first.");
       return;
     }
-
     try {
       await sendPasswordResetEmail(auth, email);
       setResetSent(true);
@@ -110,12 +102,68 @@ export default function AdminDashboard() {
     }
   };
 
-  // Prevent UI flashing while checking auth
-  if (isCheckingAuth) {
-    return <div className="min-h-screen bg-gray-100 flex items-center justify-center font-bold text-gray-500">Loading Secure Gateway...</div>;
-  }
+  // --- BULK INGESTION LOGIC ---
+  const handleBulkUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
 
-  // --- LOGIN / REGISTER / RESET SCREEN UI ---
+    setIsUploading(true);
+    try {
+      const text = await file.text();
+      // Split by line and remove empty lines
+      const lines = text.split('\n').map(line => line.trim()).filter(line => line.length > 0);
+      
+      setUploadProgress({ current: 0, total: lines.length });
+
+      for (let i = 0; i < lines.length; i++) {
+        const rawText = lines[i];
+        
+        
+        const triageRes = await fetch("/api/triage", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ text: rawText }),
+        });
+        
+        if (!triageRes.ok) {
+          console.error(`Skipping row due to API error: ${rawText}`);
+          continue; 
+        }
+        
+        const aiData = await triageRes.json();
+
+        // 2. Save directly to Firebase
+        await addDoc(collection(db, "reports"), {
+          intent: aiData.intent || "Need",
+          category: aiData.category || "Unknown",
+          urgency: aiData.urgency || "Medium",
+          locationText: aiData.location || "Unknown",
+          threatScore: aiData.threatScore !== undefined ? aiData.threatScore : 1,
+          rawText: rawText,
+          lat: aiData.lat || 23.8759, // Uses the coordinates returned from route.ts
+          lng: aiData.lng || 90.3795,
+          createdAt: serverTimestamp(),
+        });
+
+        // Update progress UI
+        setUploadProgress(prev => ({ ...prev, current: i + 1 }));
+        await delay(4000);
+      }
+      
+      alert(`Successfully processed ${lines.length} reports!`);
+    } catch (error) {
+      console.error("Bulk upload failed:", error);
+      alert("An error occurred during bulk upload.");
+    } finally {
+      setIsUploading(false);
+      setUploadProgress({ current: 0, total: 0 });
+      e.target.value = ''; // Reset input
+    }
+  };
+
+  if (isCheckingAuth) return <div className="min-h-screen bg-gray-100 flex items-center justify-center font-bold text-gray-500">Loading Secure Gateway...</div>;
+
+  // --- LOGIN / REGISTER / RESET SCREEN UI (Unchanged) ---
   if (!user) {
     return (
       <div className="min-h-screen bg-gray-100 flex items-center justify-center p-4">
@@ -126,16 +174,10 @@ export default function AdminDashboard() {
             </div>
             <h1 className="text-2xl font-bold text-gray-900">Admin Gateway</h1>
             <p className="text-gray-500 mt-2 text-sm">
-              {isResettingPassword 
-                ? "Enter your email to receive a password reset link." 
-                : isRegistering 
-                  ? "Create a new admin coordinator account." 
-                  : "Restricted access. Please log in."}
+              {isResettingPassword ? "Enter your email to receive a password reset link." : isRegistering ? "Create a new admin coordinator account." : "Restricted access. Please log in."}
             </p>
           </div>
-          
           <form onSubmit={isResettingPassword ? handlePasswordReset : handleAuth} className="flex flex-col gap-4">
-            {/* Added text-gray-900 and placeholder-gray-400 to fix the white-text bug */}
             <input
               type="email"
               placeholder="Admin Email Address..."
@@ -144,7 +186,6 @@ export default function AdminDashboard() {
               onChange={(e) => setEmail(e.target.value)}
               required
             />
-            
             {!isResettingPassword && (
               <input
                 type="password"
@@ -156,44 +197,20 @@ export default function AdminDashboard() {
                 minLength={6}
               />
             )}
-            
             {authError && <div className="text-red-500 text-sm font-semibold text-center">{authError}</div>}
             {resetSent && <div className="text-green-600 text-sm font-semibold text-center">Password reset email sent! Check your inbox.</div>}
-            
             <button type="submit" className="w-full bg-gray-900 text-white font-bold py-4 rounded-xl hover:bg-black transition-all">
               {isResettingPassword ? "Send Reset Link" : isRegistering ? "Register Admin Account" : "Secure Login"}
             </button>
           </form>
-
           <div className="mt-6 flex flex-col gap-3 text-center text-sm">
             {!isResettingPassword && !isRegistering && (
-              <button 
-                onClick={() => { setIsResettingPassword(true); setAuthError(""); setResetSent(false); }} 
-                className="text-blue-600 hover:underline font-medium"
-              >
-                Forgot Password?
-              </button>
+              <button onClick={() => { setIsResettingPassword(true); setAuthError(""); setResetSent(false); }} className="text-blue-600 hover:underline font-medium">Forgot Password?</button>
             )}
-
-            <button 
-              onClick={() => { 
-                setIsRegistering(!isRegistering); 
-                setIsResettingPassword(false); 
-                setAuthError(""); 
-                setResetSent(false);
-              }} 
-              className="text-gray-600 hover:text-gray-900 font-medium"
-            >
-              {isRegistering 
-                ? "Already have an account? Log in." 
-                : isResettingPassword 
-                  ? "Back to Login" 
-                  : "Need access? Register here."}
+            <button onClick={() => { setIsRegistering(!isRegistering); setIsResettingPassword(false); setAuthError(""); setResetSent(false); }} className="text-gray-600 hover:text-gray-900 font-medium">
+              {isRegistering ? "Already have an account? Log in." : isResettingPassword ? "Back to Login" : "Need access? Register here."}
             </button>
-            
-            <a href="/" className="text-blue-600 hover:underline font-medium mt-2">
-              &larr; Return to Public Map
-            </a>
+            <a href="/" className="text-blue-600 hover:underline font-medium mt-2">&larr; Return to Public Map</a>
           </div>
         </div>
       </div>
@@ -204,32 +221,48 @@ export default function AdminDashboard() {
   return (
     <div className="min-h-screen bg-gray-50 p-8">
       <div className="max-w-6xl mx-auto">
+        
+        {/* Header */}
         <div className="flex justify-between items-center mb-8">
           <div>
             <h1 className="text-3xl font-bold text-gray-900">Dispatch Dashboard</h1>
             <p className="text-gray-500 mt-1">Live overview. Logged in as: <strong>{user.email}</strong></p>
           </div>
           <div className="flex gap-3">
-            <button 
-              onClick={handleLogout}
-              className="px-5 py-2 border-2 border-gray-300 text-gray-600 rounded-lg font-bold hover:bg-gray-100 transition-all"
-            >
-              Log Out
-            </button>
-            <a href="/" className="px-5 py-2 bg-blue-600 text-white rounded-lg font-bold hover:bg-blue-700 transition-all shadow-sm">
-              View Live Map
-            </a>
+            <button onClick={handleLogout} className="px-5 py-2 border-2 border-gray-300 text-gray-600 rounded-lg font-bold hover:bg-gray-100 transition-all">Log Out</button>
+            <a href="/" className="px-5 py-2 bg-blue-600 text-white rounded-lg font-bold hover:bg-blue-700 transition-all shadow-sm">View Live Map</a>
+          </div>
+        </div>
+
+        {/* Bulk Ingestion Module */}
+        <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-200 mb-8 flex items-center justify-between">
+          <div>
+            <h2 className="text-lg font-bold text-gray-900">Bulk Data Ingestion</h2>
+            <p className="text-sm text-gray-500 mt-1">Upload a .txt or .csv file (one distress signal per line) to process via AI.</p>
+          </div>
+          <div className="flex items-center gap-4">
+            {isUploading ? (
+              <div className="text-sm font-bold text-blue-600">
+                Processing {uploadProgress.current} / {uploadProgress.total}...
+              </div>
+            ) : (
+              <label className="cursor-pointer bg-gray-900 text-white px-5 py-2 rounded-lg font-bold hover:bg-black transition-all">
+                Upload CSV / TXT
+                <input type="file" accept=".csv, .txt" className="hidden" onChange={handleBulkUpload} />
+              </label>
+            )}
           </div>
         </div>
         
+        {/* Intelligence Table */}
         <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
           <div className="overflow-x-auto">
             <table className="w-full text-left border-collapse">
               <thead>
                 <tr className="bg-gray-100 border-b border-gray-200 text-gray-600 text-sm uppercase tracking-wider">
+                  <th className="p-4 font-semibold">Threat</th>
                   <th className="p-4 font-semibold">Intent</th>
                   <th className="p-4 font-semibold">Category</th>
-                  <th className="p-4 font-semibold">Urgency</th>
                   <th className="p-4 font-semibold">Location</th>
                   <th className="p-4 font-semibold">Raw Signal</th>
                   <th className="p-4 font-semibold text-right">Actions</th>
@@ -244,22 +277,26 @@ export default function AdminDashboard() {
                   reports.map((report) => (
                     <tr key={report.id} className="hover:bg-gray-50 transition-colors">
                       <td className="p-4">
-                        <span className={`px-3 py-1 text-xs font-bold rounded-full text-white ${report.intent === "Need" ? "bg-red-500" : "bg-green-500"}`}>
-                          {report.intent}
-                        </span>
+                        {report.threatScore === 0 ? (
+                          <span className="flex items-center justify-center w-8 h-8 rounded-full font-bold text-gray-500 bg-gray-200 shadow-sm text-xs">
+                            N/A
+                          </span>
+                        ) : (
+                          <span className={`flex items-center justify-center w-8 h-8 rounded-full font-bold text-white shadow-sm ${
+                            (report.threatScore || 0) >= 8 ? "bg-red-600" : (report.threatScore || 0) >= 4 ? "bg-orange-500" : "bg-green-500"
+                          }`}>
+                            {report.threatScore || 1}
+                          </span>
+                        )}
                       </td>
                       <td className="p-4 text-gray-800 font-bold">{report.category}</td>
-                      <td className="p-4 text-gray-600 font-medium">{report.urgency}</td>
                       <td className="p-4 text-gray-600">{report.locationText}</td>
                       <td className="p-4 text-gray-500 text-sm max-w-xs truncate" title={report.rawText}>
                         "{report.rawText}"
                       </td>
                       <td className="p-4 text-right">
-                        <button 
-                          onClick={() => handleDelete(report.id)}
-                          className="px-4 py-2 bg-gray-800 text-white rounded-lg hover:bg-gray-900 font-bold text-sm transition-all"
-                        >
-                          Dispatch & Resolve
+                        <button onClick={() => handleDelete(report.id)} className="px-4 py-2 bg-gray-800 text-white rounded-lg hover:bg-gray-900 font-bold text-sm transition-all">
+                          Resolve
                         </button>
                       </td>
                     </tr>
@@ -269,6 +306,7 @@ export default function AdminDashboard() {
             </table>
           </div>
         </div>
+
       </div>
     </div>
   );

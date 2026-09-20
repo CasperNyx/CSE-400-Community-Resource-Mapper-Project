@@ -12,6 +12,8 @@ export default function ResourceForm() {
   const [activeReportId, setActiveReportId] = useState<string | null>(null);
   const [activeReportData, setActiveReportData] = useState<any>(null);
   
+  const [isMinimized, setIsMinimized] = useState(false);
+  
   // States for updating location
   const [isUpdatingLocation, setIsUpdatingLocation] = useState(false);
   const [newLocationText, setNewLocationText] = useState("");
@@ -56,32 +58,19 @@ export default function ResourceForm() {
         body: JSON.stringify({ text: inputText }),
       });
       const data = await res.json();
+      
       if (data.error) throw new Error(data.error);
 
-      // Geocode the AI-extracted location
-      let lat = 23.8759 + (Math.random() - 0.5) * 0.02;
-      let lng = 90.3795 + (Math.random() - 0.5) * 0.02;
-      try {
-        const geoQuery = encodeURIComponent(data.location + ", Dhaka, Bangladesh");
-        const geoRes = await fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${geoQuery}`);
-        const geoData = await geoRes.json();
-        if (geoData && geoData.length > 0) {
-          lat = parseFloat(geoData[0].lat);
-          lng = parseFloat(geoData[0].lon);
-        }
-      } catch (err) {
-        console.warn("Geocoding failed, using fallback.");
-      }
-
-      // Save to Firebase and remember the document ID on this device
+      // Save directly to Firebase using the precise lat/lng calculated by our backend route
       const docRef = await addDoc(collection(db, "reports"), {
         intent: data.intent,
         category: data.category,
         urgency: data.urgency,
         locationText: data.location,
+        threatScore: data.threatScore !== undefined ? data.threatScore : 1,
         rawText: inputText,
-        lat: lat,
-        lng: lng,
+        lat: data.lat || 23.8759,
+        lng: data.lng || 90.3795,
         createdAt: serverTimestamp(),
       });
 
@@ -90,7 +79,7 @@ export default function ResourceForm() {
       setInputText("");
     } catch (error) {
       console.error("Triage error:", error);
-      alert("Failed to process request.");
+      alert("Failed to process request. Please check the terminal.");
     } finally {
       setIsProcessing(false);
     }
@@ -159,50 +148,78 @@ export default function ResourceForm() {
       {/* STATE 1: ACTIVE REPORT DASHBOARD */}
       {activeReportId && activeReportData ? (
         <div className="flex flex-col gap-4">
-          <div className="flex justify-between items-start">
+          
+          {/* Header with Minimize & Clear Buttons */}
+          <div className="flex justify-between items-center">
             <h2 className="text-xl font-bold text-gray-800">Active Status</h2>
-            <span className={`px-3 py-1 text-xs font-bold rounded-full text-white ${activeReportData.intent === "Need" ? "bg-red-500" : "bg-green-500"}`}>
-              {activeReportData.intent}: {activeReportData.category}
-            </span>
-          </div>
-
-          <div className="bg-gray-50 p-4 rounded-xl border border-gray-100 text-sm text-gray-700">
-            <p className="mb-2"><strong>Location:</strong> {activeReportData.locationText}</p>
-            <p className="mb-2"><strong>Urgency:</strong> {activeReportData.urgency}</p>
-            <p className="italic text-gray-500">"{activeReportData.rawText}"</p>
-          </div>
-
-          {isUpdatingLocation ? (
-            <form onSubmit={handleUpdateLocation} className="flex flex-col gap-2 mt-2">
-              <input
-                type="text"
-                placeholder="Enter new neighborhood or landmark..."
-                className="w-full p-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-600"
-                value={newLocationText}
-                onChange={(e) => setNewLocationText(e.target.value)}
-                disabled={isProcessing}
-              />
-              <div className="flex gap-2">
-                <button type="button" onClick={() => setIsUpdatingLocation(false)} className="flex-1 p-3 rounded-xl bg-gray-200 text-gray-800 font-bold">Cancel</button>
-                <button type="submit" disabled={isProcessing} className="flex-1 p-3 rounded-xl bg-blue-600 text-white font-bold">{isProcessing ? "..." : "Save"}</button>
-              </div>
-            </form>
-          ) : (
-            <div className="flex gap-2 mt-2">
+            <div className="flex gap-2">
               <button 
-                onClick={() => setIsUpdatingLocation(true)} 
-                className="flex-1 py-3 rounded-xl border-2 border-blue-600 text-blue-600 font-bold hover:bg-blue-50 transition-all"
+                onClick={() => setIsMinimized(!isMinimized)} 
+                className="px-3 py-1 bg-gray-200 text-gray-700 rounded-lg text-sm font-bold hover:bg-gray-300 transition-all"
               >
-                Update Location
+                {isMinimized ? "Expand" : "Minimize"}
               </button>
               <button 
-                onClick={handleCancelReport} 
-                disabled={isProcessing}
-                className="flex-1 py-3 rounded-xl bg-gray-800 text-white font-bold hover:bg-gray-900 transition-all disabled:bg-gray-400"
+                onClick={() => {
+                  localStorage.removeItem("community_mapper_report_id");
+                  setActiveReportId(null);
+                  setActiveReportData(null);
+                }} 
+                className="px-3 py-1 bg-red-100 text-red-600 rounded-lg text-sm font-bold hover:bg-red-200 transition-all"
               >
-                Resolve & Clear
+                Clear
               </button>
             </div>
+          </div>
+
+          {/* Collapsible Content */}
+          {!isMinimized && (
+            <>
+              <div className="flex justify-between items-start">
+                <span className={`px-3 py-1 text-xs font-bold rounded-full text-white ${activeReportData.intent === "Need" ? "bg-red-500" : "bg-green-500"}`}>
+                  {activeReportData.intent}: {activeReportData.category}
+                </span>
+              </div>
+
+              <div className="bg-gray-50 p-4 rounded-xl border border-gray-100 text-sm text-gray-700">
+                <p className="mb-2"><strong>Location:</strong> {activeReportData.locationText}</p>
+                <p className="mb-2"><strong>Urgency:</strong> {activeReportData.urgency}</p>
+                <p className="italic text-gray-500">"{activeReportData.rawText}"</p>
+              </div>
+
+              {isUpdatingLocation ? (
+                <form onSubmit={handleUpdateLocation} className="flex flex-col gap-2 mt-2">
+                  <input
+                    type="text"
+                    placeholder="Enter new neighborhood or landmark..."
+                    className="w-full p-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-600"
+                    value={newLocationText}
+                    onChange={(e) => setNewLocationText(e.target.value)}
+                    disabled={isProcessing}
+                  />
+                  <div className="flex gap-2">
+                    <button type="button" onClick={() => setIsUpdatingLocation(false)} className="flex-1 p-3 rounded-xl bg-gray-200 text-gray-800 font-bold">Cancel</button>
+                    <button type="submit" disabled={isProcessing} className="flex-1 p-3 rounded-xl bg-blue-600 text-white font-bold">{isProcessing ? "..." : "Save"}</button>
+                  </div>
+                </form>
+              ) : (
+                <div className="flex gap-2 mt-2">
+                  <button 
+                    onClick={() => setIsUpdatingLocation(true)} 
+                    className="flex-1 py-3 rounded-xl border-2 border-blue-600 text-blue-600 font-bold hover:bg-blue-50 transition-all"
+                  >
+                    Update Location
+                  </button>
+                  <button 
+                    onClick={handleCancelReport} 
+                    disabled={isProcessing}
+                    className="flex-1 py-3 rounded-xl bg-gray-800 text-white font-bold hover:bg-gray-900 transition-all disabled:bg-gray-400"
+                  >
+                    Resolve & Clear
+                  </button>
+                </div>
+              )}
+            </>
           )}
         </div>
       ) : (
