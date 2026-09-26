@@ -1,16 +1,13 @@
-"use client";
+import HeroSection from "@/components/landing/HeroSection";
+import VisionSection from "@/components/landing/VisionSection";
+import AppPreviewSection from "@/components/landing/AppPreviewSection";
 
-import dynamic from "next/dynamic";
-import ResourceForm from "@/components/ResourceForm";
-
-// We dynamically import the map to prevent Server-Side Rendering (SSR) errors with Leaflet
-const MapComponent = dynamic(() => import("@/components/Map"), { ssr: false });
-
-export default function Home() {
+export default function HomePage() {
   return (
-    <main className="w-full h-screen relative overflow-hidden bg-gray-100">
-      <MapComponent />
-      <ResourceForm />
+    <main className="min-h-screen bg-slate-50 text-slate-900">
+      <HeroSection />
+      <VisionSection />
+      <AppPreviewSection />
     </main>
   );
 }

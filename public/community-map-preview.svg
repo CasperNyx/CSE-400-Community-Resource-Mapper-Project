@@ -1,0 +1,45 @@
+<svg width="1600" height="920" viewBox="0 0 1600 920" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <rect width="1600" height="920" fill="#E8E4D9"/>
+  <path d="M0 160C210 130 290 245 475 205C645 168 718 55 910 105C1114 158 1198 255 1600 180" stroke="#C6D8D5" stroke-width="42"/>
+  <path d="M-80 530C155 458 225 590 430 535C620 484 760 405 929 472C1135 555 1260 662 1680 548" stroke="#C0D5DE" stroke-width="62"/>
+  <path d="M-20 795C220 730 352 830 525 770C755 688 913 697 1080 782C1265 878 1390 840 1640 790" stroke="#D2CBB7" stroke-width="48"/>
+  <g stroke="#B7B4AA" stroke-width="5" opacity=".72">
+    <path d="M-60 110L420 820M95 -30L620 920M310 -40L825 920M530 -50L990 920M730 -20L1200 920M935 -40L1390 920M1160 -30L1605 850"/>
+    <path d="M-50 260L1600 610M-80 390L1600 110M-50 670L1630 310M-50 850L1630 480"/>
+  </g>
+  <g stroke="#F8F3E7" stroke-width="13" opacity=".9">
+    <path d="M-40 335C270 285 420 425 662 355C920 280 1090 332 1645 245"/>
+    <path d="M-40 585C230 505 460 655 690 555C940 448 1160 620 1640 490"/>
+    <path d="M280 -30C360 170 345 360 455 550C530 680 630 790 655 950"/>
+    <path d="M1015 -30C955 185 1020 330 900 510C810 650 820 785 890 950"/>
+  </g>
+  <g fill="#A8CDB6" opacity=".65">
+    <path d="M480 220C560 180 688 210 715 290C735 350 635 375 568 345C505 318 438 280 480 220Z"/>
+    <path d="M1040 590C1120 520 1255 565 1270 650C1280 720 1175 738 1100 704C1030 674 1000 625 1040 590Z"/>
+  </g>
+  <g fill="#8D9DAB" font-family="Arial, sans-serif" font-size="20" font-weight="700" opacity=".82">
+    <text x="760" y="276">COMMUNITY DISTRICT</text><text x="1030" y="420">NORTH RESPONSE ZONE</text><text x="510" y="650">RIVER WARD</text><text x="1200" y="760">SOUTH MARKET</text>
+  </g>
+  <circle cx="880" cy="410" r="250" fill="#54C7A5" fill-opacity=".12" stroke="#21A47D" stroke-width="5"/>
+  <circle cx="850" cy="455" r="58" fill="#F25C5C" fill-opacity=".82" stroke="#fff" stroke-width="4"/>
+  <circle cx="1035" cy="510" r="64" fill="#37B88A" fill-opacity=".65" stroke="#fff" stroke-width="4"/>
+  <circle cx="1160" cy="650" r="42" fill="#F6BE4F" fill-opacity=".78" stroke="#fff" stroke-width="4"/>
+  <circle cx="720" cy="625" r="34" fill="#F25C5C" fill-opacity=".72" stroke="#fff" stroke-width="4"/>
+  <g font-family="Arial, sans-serif">
+    <rect x="20" y="22" width="335" height="312" rx="24" fill="#16253A" fill-opacity=".96"/>
+    <text x="48" y="68" fill="#46D0A4" font-size="22" font-weight="700">SMART SPATIAL</text><text x="48" y="96" fill="#46D0A4" font-size="22" font-weight="700">MATCHING</text>
+    <rect x="262" y="46" width="70" height="38" rx="19" fill="#075D4B"/><text x="277" y="70" fill="#8FF2CE" font-size="12" font-weight="700">6 MATCHES</text>
+    <text x="48" y="133" fill="#C8D4DF" font-size="14" font-weight="700">MATCHING RADIUS</text><rect x="48" y="153" width="270" height="7" rx="4" fill="#DFE2E5"/><rect x="48" y="153" width="118" height="7" rx="4" fill="#7A8491"/>
+    <text x="48" y="202" fill="#6EE3BD" font-size="14" font-weight="700">NEED: COMMUNITY WATER</text><text x="278" y="202" fill="#6EE3BD" font-size="14" font-weight="700">8.32 km</text><line x1="48" y1="218" x2="320" y2="218" stroke="#364A61"/>
+    <text x="48" y="249" fill="#6EE3BD" font-size="14" font-weight="700">NEED: MEDICAL KIT</text><text x="278" y="249" fill="#6EE3BD" font-size="14" font-weight="700">7.60 km</text><line x1="48" y1="265" x2="320" y2="265" stroke="#364A61"/>
+    <text x="48" y="296" fill="#6EE3BD" font-size="14" font-weight="700">OFFER: FOOD PACKS</text><text x="278" y="296" fill="#6EE3BD" font-size="14" font-weight="700">7.80 km</text>
+    <rect x="20" y="355" width="335" height="285" rx="24" fill="#16253A" fill-opacity=".96"/>
+    <text x="48" y="402" fill="#FF6572" font-size="21" font-weight="700">DYNAMIC THREAT</text><text x="48" y="430" fill="#FF6572" font-size="21" font-weight="700">HEATMAP</text><text x="48" y="458" fill="#B8C4D1" font-size="13">Macro-level risk zones and density</text>
+    <rect x="232" y="391" width="94" height="48" rx="10" fill="#F50046"/><text x="252" y="420" fill="white" font-size="14" font-weight="700">HEATMAP:</text><text x="266" y="436" fill="white" font-size="14" font-weight="700">ON</text>
+    <rect x="42" y="490" width="142" height="91" rx="10" fill="#20334A" stroke="#384C63"/><text x="57" y="518" fill="#B8C4D1" font-size="12">TOTAL ACTIVE</text><text x="57" y="553" fill="white" font-size="27" font-weight="700">6</text>
+    <rect x="198" y="490" width="142" height="91" rx="10" fill="#20334A" stroke="#384C63"/><text x="213" y="518" fill="#B8C4D1" font-size="12">HIGH RISK ZONES</text><text x="213" y="553" fill="#FF4E6B" font-size="27" font-weight="700">5</text>
+  </g>
+  <rect x="688" y="24" width="300" height="55" rx="28" fill="white" fill-opacity=".96"/><rect x="700" y="30" width="80" height="43" rx="22" fill="#1467E8"/><text x="726" y="57" fill="white" font-family="Arial" font-size="16" font-weight="700">ALL</text><text x="812" y="57" fill="#58616D" font-family="Arial" font-size="16" font-weight="700">NEEDS</text><text x="902" y="57" fill="#58616D" font-family="Arial" font-size="16" font-weight="700">OFFERS</text>
+  <rect x="1392" y="25" width="174" height="52" rx="16" fill="#16253A"/><rect x="1399" y="31" width="84" height="40" rx="20" fill="#236BFF"/><text x="1421" y="57" fill="white" font-family="Arial" font-size="14" font-weight="700">Portal</text><text x="1510" y="57" fill="white" font-family="Arial" font-size="14" font-weight="700">Admin</text>
+  <rect x="0" y="822" width="1600" height="98" rx="22" fill="white"/><text x="690" y="875" fill="#657181" font-family="Arial" font-size="20" font-weight="700">Open Community Relief Triage</text><text x="1035" y="875" fill="#657181" font-family="Arial" font-size="25" font-weight="700">&#8593;</text>
+</svg>

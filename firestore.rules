@@ -1,0 +1,66 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+    function signedIn() {
+      return request.auth != null;
+    }
+
+    function isSuperAdmin() {
+      return signedIn()
+        && get(/databases/$(database)/documents/userProfiles/$(request.auth.uid)).data.role == 'super-admin';
+    }
+
+    function isLegacyAdmin() {
+      return signedIn()
+        && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin';
+    }
+
+    function ownsReport() {
+      return signedIn() && request.resource.data.ownerId == request.auth.uid;
+    }
+
+    match /userProfiles/{userId} {
+      allow create: if signedIn() && request.auth.uid == userId
+        && request.resource.data.role == 'pending';
+      allow read: if (signedIn() && request.auth.uid == userId) || isSuperAdmin();
+      allow update, delete: if isSuperAdmin();
+    }
+
+    // Compatibility profile collection. Users cannot assign themselves admin access.
+    match /users/{userId} {
+      allow read, delete: if signedIn() && request.auth.uid == userId;
+      allow update: if signedIn()
+        && request.auth.uid == userId
+        && request.resource.data.role == resource.data.role;
+      allow create: if signedIn()
+        && request.auth.uid == userId
+        && request.resource.data.role in ['user', 'pending'];
+    }
+
+    // Dispatch-only data may be accessed by the verified app role or legacy admin role.
+    match /adminData/{docId} {
+      allow read, write: if isSuperAdmin() || isLegacyAdmin();
+    }
+
+    // Shared dashboard data is available to authenticated sessions.
+    match /dashboardData/{docId} {
+      allow read, write: if signedIn();
+    }
+
+    match /reports/{reportId} {
+      allow read: if isSuperAdmin()
+        || (signedIn() && resource.data.ownerId == request.auth.uid);
+      allow create: if ownsReport();
+      allow update: if isSuperAdmin()
+        || (signedIn() && resource.data.ownerId == request.auth.uid
+          && request.resource.data.ownerId == resource.data.ownerId);
+      allow delete: if isSuperAdmin()
+        || (signedIn() && resource.data.ownerId == request.auth.uid);
+    }
+
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}

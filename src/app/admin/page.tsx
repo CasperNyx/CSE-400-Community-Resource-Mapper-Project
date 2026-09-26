@@ -11,6 +11,8 @@ import {
   sendPasswordResetEmail,
   User 
 } from "firebase/auth";
+import { useRouter } from "next/navigation";
+import { getUserRole } from "@/lib/roles";
 
 interface Report {
   id: string;
@@ -22,6 +24,7 @@ interface Report {
   threatScore?: number;
 }
 const delay = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
+
 export default function AdminDashboard() {
   const [user, setUser] = useState<User | null>(null);
   const [isCheckingAuth, setIsCheckingAuth] = useState(true);
@@ -33,17 +36,29 @@ export default function AdminDashboard() {
   const [resetSent, setResetSent] = useState(false);
   const [reports, setReports] = useState<Report[]>([]);
   
-  // States for Bulk Upload
   const [isUploading, setIsUploading] = useState(false);
   const [uploadProgress, setUploadProgress] = useState({ current: 0, total: 0 });
+  
+  const router = useRouter();
 
   useEffect(() => {
-    const unsubscribe = onAuthStateChanged(auth, (currentUser) => {
-      setUser(currentUser);
-      setIsCheckingAuth(false);
+    const unsubscribe = onAuthStateChanged(auth, async (currentUser) => {
+      if (currentUser) {
+        const role = await getUserRole(currentUser.uid);
+        if (role === "super-admin") {
+          setUser(currentUser);
+          setIsCheckingAuth(false);
+        } else {
+          // Unauthorized user detected, force redirect to map
+          router.replace("/map");
+        }
+      } else {
+        setUser(null);
+        setIsCheckingAuth(false);
+      }
     });
     return () => unsubscribe();
-  }, []);
+  }, [router]);
 
   useEffect(() => {
     if (!user) return;
@@ -52,8 +67,6 @@ export default function AdminDashboard() {
         id: doc.id,
         ...(doc.data() as Omit<Report, "id">),
       }));
-      
-      // Sort by threatScore descending (highest priority at the top)
       reportsData.sort((a, b) => (b.threatScore || 0) - (a.threatScore || 0));
       setReports(reportsData);
     });
@@ -102,7 +115,6 @@ export default function AdminDashboard() {
     }
   };
 
-  // --- BULK INGESTION LOGIC ---
   const handleBulkUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
@@ -110,14 +122,12 @@ export default function AdminDashboard() {
     setIsUploading(true);
     try {
       const text = await file.text();
-      // Split by line and remove empty lines
       const lines = text.split('\n').map(line => line.trim()).filter(line => line.length > 0);
       
       setUploadProgress({ current: 0, total: lines.length });
 
       for (let i = 0; i < lines.length; i++) {
         const rawText = lines[i];
-        
         
         const triageRes = await fetch("/api/triage", {
           method: "POST",
@@ -132,7 +142,6 @@ export default function AdminDashboard() {
         
         const aiData = await triageRes.json();
 
-        // 2. Save directly to Firebase
         await addDoc(collection(db, "reports"), {
           intent: aiData.intent || "Need",
           category: aiData.category || "Unknown",
@@ -140,12 +149,11 @@ export default function AdminDashboard() {
           locationText: aiData.location || "Unknown",
           threatScore: aiData.threatScore !== undefined ? aiData.threatScore : 1,
           rawText: rawText,
-          lat: aiData.lat || 23.8759, // Uses the coordinates returned from route.ts
+          lat: aiData.lat || 23.8759, 
           lng: aiData.lng || 90.3795,
           createdAt: serverTimestamp(),
         });
 
-        // Update progress UI
         setUploadProgress(prev => ({ ...prev, current: i + 1 }));
         await delay(4000);
       }
@@ -157,13 +165,12 @@ export default function AdminDashboard() {
     } finally {
       setIsUploading(false);
       setUploadProgress({ current: 0, total: 0 });
-      e.target.value = ''; // Reset input
+      e.target.value = ''; 
     }
   };
 
   if (isCheckingAuth) return <div className="min-h-screen bg-gray-100 flex items-center justify-center font-bold text-gray-500">Loading Secure Gateway...</div>;
 
-  // --- LOGIN / REGISTER / RESET SCREEN UI (Unchanged) ---
   if (!user) {
     return (
       <div className="min-h-screen bg-gray-100 flex items-center justify-center p-4">
@@ -217,12 +224,10 @@ export default function AdminDashboard() {
     );
   }
 
-  // --- PROTECTED DASHBOARD UI ---
   return (
     <div className="min-h-screen bg-gray-50 p-8">
       <div className="max-w-6xl mx-auto">
         
-        {/* Header */}
         <div className="flex justify-between items-center mb-8">
           <div>
             <h1 className="text-3xl font-bold text-gray-900">Dispatch Dashboard</h1>
@@ -230,11 +235,10 @@ export default function AdminDashboard() {
           </div>
           <div className="flex gap-3">
             <button onClick={handleLogout} className="px-5 py-2 border-2 border-gray-300 text-gray-600 rounded-lg font-bold hover:bg-gray-100 transition-all">Log Out</button>
-            <a href="/" className="px-5 py-2 bg-blue-600 text-white rounded-lg font-bold hover:bg-blue-700 transition-all shadow-sm">View Live Map</a>
+            <a href="/map" className="px-5 py-2 bg-blue-600 text-white rounded-lg font-bold hover:bg-blue-700 transition-all shadow-sm">View Live Map</a>
           </div>
         </div>
 
-        {/* Bulk Ingestion Module */}
         <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-200 mb-8 flex items-center justify-between">
           <div>
             <h2 className="text-lg font-bold text-gray-900">Bulk Data Ingestion</h2>
@@ -254,7 +258,6 @@ export default function AdminDashboard() {
           </div>
         </div>
         
-        {/* Intelligence Table */}
         <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
           <div className="overflow-x-auto">
             <table className="w-full text-left border-collapse">
